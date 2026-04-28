@@ -82,6 +82,10 @@
   gap: 8px;
 }
 
+.workspace-launch {
+  text-decoration: none;
+}
+
 /* Main Content */
 #main {
   position: fixed;
@@ -149,6 +153,16 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.login-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.login-actions a {
+  text-decoration: none;
 }
 
 .login-form input {
