@@ -6,15 +6,24 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#1a1a2e" />
+  <script>
+    (function() {
+      const pathname = window.location.pathname || '/';
+      const baseHref = pathname === '/ops-console' || pathname.startsWith('/ops-console/')
+        ? '/ops-console/'
+        : '/';
+      document.write('<base href="' + baseHref + '">');
+    })();
+  </script>
   <title>Hermes Control Interface</title>
-  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/theme.css" />
-  <link rel="stylesheet" href="/css/layout.css" />
-  <link rel="stylesheet" href="/css/components.css" />
-  <link rel="stylesheet" href="/css/chat.css" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/chat.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" crossorigin="anonymous">
 </head>
 <body>
@@ -49,7 +58,7 @@
     <header id="topbar">
       <div class="topbar-left">
         <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">☰</button>
-        <img src="/assets/hermes-icon.svg" alt="Hermes" class="brand-logo" />
+        <img src="assets/hermes-icon.svg" alt="Hermes" class="brand-logo" />
         <div class="brand-sub">Hermes Control Interface</div>
       </div>
       <nav class="topbar-nav" id="nav">
@@ -131,6 +140,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js" crossorigin="anonymous"></script>
-  <script type="module" src="/js/main.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

@@ -2,11 +2,18 @@
    HCI Main Entry Point
    ============================================ */
 import { Chart, registerables } from 'chart.js';
+import { toAppUrl, toAppWebSocketUrl } from './app-url-utils.mjs';
 import { toDisplayText } from './chat-render-utils.mjs';
 import { resolveSessionDisplayTitle } from './session-title-utils.mjs';
 import { SSE_EVENT_TYPES, mapWsType } from '../../lib/sse-events.js';
 import { wsClient } from './ws-client.js';
 Chart.register(...registerables);
+
+const nativeFetch = globalThis.fetch.bind(globalThis);
+const fetch = (input, init) => nativeFetch(
+  typeof input === 'string' ? toAppUrl(input) : input,
+  init
+);
 
 // State
 const state = {
@@ -3275,7 +3282,7 @@ async function loadXtermAndConnect(command) {
   if (!document.querySelector('link[href*="xterm"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/vendor/xterm/css/xterm.css';
+    link.href = toAppUrl('/vendor/xterm/css/xterm.css');
     document.head.appendChild(link);
   }
 
@@ -3290,8 +3297,8 @@ async function loadXtermAndConnect(command) {
   });
 
   try {
-    await loadScript('/vendor/xterm/lib/xterm.js');
-    await loadScript('/vendor/xterm-addon-fit/lib/addon-fit.js');
+    await loadScript(toAppUrl('/vendor/xterm/lib/xterm.js'));
+    await loadScript(toAppUrl('/vendor/xterm-addon-fit/lib/addon-fit.js'));
 
     const term = new Terminal({
       cursorBlink: true,
@@ -3320,8 +3327,7 @@ async function loadXtermAndConnect(command) {
     } catch {}
 
     // Connect WebSocket
-    const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${wsProtocol}//${location.host}/ws`);
+    const ws = new WebSocket(toAppWebSocketUrl('/ws'));
     termWs = ws;
 
     let commandSent = false;
@@ -3727,7 +3733,7 @@ async function sseProgressModal(title, url, options = {}) {
             if (data.message) addLine(data.message);
             if (data.path) {
               const a = document.createElement('a');
-              a.href = `/api/backup/download?path=${encodeURIComponent(data.path)}`;
+              a.href = toAppUrl(`/api/backup/download?path=${encodeURIComponent(data.path)}`);
               a.download = data.filename || 'backup.zip';
               document.body.appendChild(a);
               a.click();
