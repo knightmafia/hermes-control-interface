@@ -772,6 +772,8 @@ const terminalSession = {
   lastError: null,
   cols: 120,
   rows: 32,
+  spawnAttempts: 0,
+  nextSpawnAt: 0,
 };
 const AVATAR_IMAGE_PATH = path.join(CONTROL_STATE_DIR, 'default-avatar.jpg');
 const DEFAULT_AVATAR_FALLBACK = AVATAR_IMAGE_PATH;
@@ -1008,6 +1010,11 @@ function appendTerminalOutput(chunk) {
 function ensureTerminalSession() {
   if (terminalSession.proc && terminalSession.ready) return terminalSession;
 
+  const now = Date.now();
+  if (terminalSession.nextSpawnAt > now) {
+    return terminalSession;
+  }
+
   const REAL_HOME = os.homedir();
   const env = {
     ...process.env,
@@ -1023,18 +1030,32 @@ function ensureTerminalSession() {
     PATH: process.env.PATH,
   };
 
-  const proc = pty.spawn('bash', ['--noprofile', '--norc', '-i'], {
-    cwd: PROJECT_ROOT,
-    env,
-    cols: terminalSession.cols,
-    rows: terminalSession.rows,
-    name: 'xterm-256color',
-  });
+  let proc;
+  try {
+    proc = pty.spawn('bash', ['--noprofile', '--norc', '-i'], {
+      cwd: PROJECT_ROOT,
+      env,
+      cols: terminalSession.cols,
+      rows: terminalSession.rows,
+      name: 'xterm-256color',
+    });
+  } catch (error) {
+    terminalSession.proc = null;
+    terminalSession.ready = false;
+    terminalSession.spawnAttempts += 1;
+    const cooldownMs = Math.min(60000, 2000 * (2 ** Math.min(terminalSession.spawnAttempts - 1, 5)));
+    terminalSession.nextSpawnAt = now + cooldownMs;
+    terminalSession.lastError = `terminal spawn failed: ${error.message || error}`;
+    appendTerminalOutput(`\r\n[terminal unavailable: ${error.message || error}; retrying in ${Math.ceil(cooldownMs / 1000)}s]\r\n`);
+    return terminalSession;
+  }
 
   terminalSession.proc = proc;
   terminalSession.startedAt = Date.now();
   terminalSession.ready = true;
   terminalSession.lastError = null;
+  terminalSession.spawnAttempts = 0;
+  terminalSession.nextSpawnAt = 0;
   terminalSession.buffer = '';
 
   proc.onData((data) => appendTerminalOutput(data));
