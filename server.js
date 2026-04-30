@@ -194,8 +194,14 @@ app.use(helmet({
 }));
 
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  if (req.url === '/ops-console/api' || req.url.startsWith('/ops-console/api/')) {
+    req.url = req.url.replace(/^\/ops-console/, '') || '/';
+  }
+  next();
+});
 // Vite-built assets have content hashes — safe to cache aggressively
-app.use(express.static(path.join(__dirname, 'dist'), {
+const staticDistOptions = {
   maxAge: '365d',
   immutable: true,
   setHeaders: (res, filePath) => {
@@ -206,7 +212,9 @@ app.use(express.static(path.join(__dirname, 'dist'), {
       res.setHeader('Expires', '0');
     }
   },
-}));
+};
+app.use(express.static(path.join(__dirname, 'dist'), staticDistOptions));
+app.use('/ops-console', express.static(path.join(__dirname, 'dist'), staticDistOptions));
 
 // API responses should NEVER be cached
 app.use('/api', (req, res, next) => {
@@ -217,6 +225,8 @@ app.use('/api', (req, res, next) => {
 });
 app.use('/vendor/xterm', express.static(path.join(__dirname, 'node_modules/@xterm/xterm'), { maxAge: '30d' }));
 app.use('/vendor/xterm-addon-fit', express.static(path.join(__dirname, 'node_modules/@xterm/addon-fit'), { maxAge: '30d' }));
+app.use('/ops-console/vendor/xterm', express.static(path.join(__dirname, 'node_modules/@xterm/xterm'), { maxAge: '30d' }));
+app.use('/ops-console/vendor/xterm-addon-fit', express.static(path.join(__dirname, 'node_modules/@xterm/addon-fit'), { maxAge: '30d' }));
 
 // ── Plugin System ──
 // Scan ~/.hermes/skills/*/ui/manifest.json for plugin registrations
@@ -4758,36 +4768,45 @@ function transformGatewayEvent(evt) {
   return null;
 }
 
+function verifyWsClient(info, done) {
+  // Strict origin check — exact match with host header
+  const origin = info.req.headers.origin || '';
+  const host = info.req.headers.host || '';
+  if (!origin) {
+    // Allow requests without Origin header (same-origin fetch, curl, etc.)
+    return done(true);
+  }
+  const expected = [`http://${host}`, `https://${host}`];
+  if (expected.includes(origin)) {
+    done(true);
+  } else {
+    log('websocket.rejected', `origin: ${origin}`);
+    done(false, 403, 'Forbidden');
+  }
+}
+
 const wss = new WebSocketServer({
   server,
   path: '/ws',
-  verifyClient: (info, done) => {
-    // Strict origin check — exact match with host header
-    const origin = info.req.headers.origin || '';
-    const host = info.req.headers.host || '';
-    if (!origin) {
-      // Allow requests without Origin header (same-origin fetch, curl, etc.)
-      return done(true);
-    }
-    const expected = [`http://${host}`, `https://${host}`];
-    if (expected.includes(origin)) {
-      done(true);
-    } else {
-      log('websocket.rejected', `origin: ${origin}`);
-      done(false, 403, 'Forbidden');
-    }
-  },
+  verifyClient: verifyWsClient,
+});
+const opsConsoleWss = new WebSocketServer({
+  server,
+  path: '/ops-console/ws',
+  verifyClient: verifyWsClient,
 });
 
 async function broadcast() {
   const state = await buildDashboardState(true);
   const payload = JSON.stringify({ type: 'snapshot', payload: state });
-  for (const client of wss.clients) {
-    if (client.readyState === 1 && client.authed) client.send(payload);
+  for (const socketServer of [wss, opsConsoleWss]) {
+    for (const client of socketServer.clients) {
+      if (client.readyState === 1 && client.authed) client.send(payload);
+    }
   }
 }
 
-wss.on('connection', async (socket, req) => {
+async function handleWsConnection(socket, req) {
   socket.authed = isAuthed(req);
   socket.clientId = 'c' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   socket.activeChatReader = null; // for cancelling gateway streams
@@ -4919,7 +4938,10 @@ wss.on('connection', async (socket, req) => {
       socket.activeChatReader = null;
     }
   });
-});
+}
+
+wss.on('connection', handleWsConnection);
+opsConsoleWss.on('connection', handleWsConnection);
 
 // Broadcast only on actual state changes (avatar upload/delete, cron actions).
 // No periodic broadcast — clients get updates via WS events and targeted API calls.
@@ -4947,8 +4969,10 @@ function shutdown(signal) {
     try { terminalSession.proc.kill(); } catch {}
   }
   // Close WebSocket connections
-  for (const client of wss.clients) {
-    try { client.close(1001, 'server shutting down'); } catch {}
+  for (const socketServer of [wss, opsConsoleWss]) {
+    for (const client of socketServer.clients) {
+      try { client.close(1001, 'server shutting down'); } catch {}
+    }
   }
   // Close server
   server.close(() => {

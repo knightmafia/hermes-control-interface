@@ -14,9 +14,18 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': backendUrl,
+      '/ops-console/api': {
+        target: backendUrl,
+        rewrite: (path) => path.replace(/^\/ops-console/, ''),
+      },
       '/ws': {
         target: backendWsUrl,
         ws: true,
+      },
+      '/ops-console/ws': {
+        target: backendWsUrl,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/ops-console/, ''),
       },
     },
   },

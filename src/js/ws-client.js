@@ -2,6 +2,7 @@
  * HCI WebSocket Client
  * Manages connection, auto-reconnect, and event routing.
  */
+import { toAppWebSocketUrl } from './app-url-utils.mjs';
 
 class HciWsClient extends EventTarget {
   constructor() {
@@ -17,8 +18,7 @@ class HciWsClient extends EventTarget {
 
   connect() {
     if (this.socket?.readyState === WebSocket.OPEN) return;
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${proto}//${location.host}/ws`;
+    const url = toAppWebSocketUrl('/ws');
 
     try {
       this.socket = new WebSocket(url);
